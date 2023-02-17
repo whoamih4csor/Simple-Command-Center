@@ -646,6 +646,7 @@ class Command_Center():
                     if self.MODE == 'graphic':
                         self.app.attributes("-disabled", False)    
                     break
+            cv2.destroyAllWindows()
             if self.MODE == 'graphic':
                 self.app.attributes("-disabled", False)
                 self.console_frame.set('console')
