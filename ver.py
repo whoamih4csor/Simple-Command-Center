@@ -3,6 +3,7 @@ import cv2
 import psutil
 import numpy
 import customtkinter
+import pynput
 
 #test versions
 print( pyaudio.__name__ + ' ' + pyaudio.__version__)
@@ -10,3 +11,4 @@ print( cv2.__name__ + ' ' + cv2.__version__)
 print( psutil.__name__ + ' ' + psutil.__version__)
 print( numpy.__name__ + ' ' + numpy.__version__)
 print( customtkinter.__name__ + ' ' + customtkinter.__version__)
+print( pynput.__name__ + ' ' + pynput.__version__)

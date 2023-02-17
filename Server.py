@@ -11,16 +11,17 @@ parser = argparse.ArgumentParser(
                     prog = sys.argv[0],
                     description = 'receives connections from Clients to send remote commands to them')
 # Add an argument
-parser.add_argument('-m','--mode',help='there are two graphic or terminal modes')
+parser.add_argument('-m','--mode',help='there are two graphic or terminal modes',required=True)
 parser.add_argument('-a','--address')
 parser.add_argument('-p','--port')
 
 # Parse the argument
 args = parser.parse_args()
 
-args.port = '4747'
-args.address = '127.0.0.1'
-args.mode = 'graphic'
+#to test without flags
+#args.port = '4747'
+#args.address = '192.168.0.10'
+#args.mode = 'graphic'
 
 if not args.address == None and not args.port == None:
     app = CommandCenter.Command_Center(args.address,args.port,args.mode)
