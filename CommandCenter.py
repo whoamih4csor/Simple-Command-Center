@@ -191,8 +191,14 @@ class Command_Center():
                 self.PrintSmart(self.HELP)
             elif command.startswith('enviar'):
                 if self.status == True:
-                    if  len(command.split()) == 3:
-                        _, index ,msg= command.split()
+                    if  len(command.split(' ')) == 3:
+                        try:
+                            _, index ,msg= command.split(' ')
+                        except:
+                            self.PrintSmart('[-] Ingresa el Comando sin espacios extras')
+                            if self.MODE == 'grafico':
+                                return
+                            continue
                         try:
                             index = int(index)
 
@@ -263,8 +269,14 @@ class Command_Center():
                     self.PrintSmart('[-] El servidor esta apagado')
             elif command.startswith('cambiar'):
                 if self.status == False:
-                    if  len(command.split()) == 3:
-                        _, var , value = command.split(' ')
+                    if  len(command.split(' ')) == 3:
+                        try:
+                            _, var , value = command.split(' ')
+                        except:
+                            self.PrintSmart('[-] Ingresa el Comando sin espacios extras')
+                            if self.MODE == 'grafico':
+                                return
+                            continue
                         if var == 'IP':
                             self.IP = value
                         elif var == 'PORT':
@@ -278,7 +290,13 @@ class Command_Center():
             elif command.startswith('borrar'):
                 if self.status == True:  
                     if  len(command.split()) == 2:
-                        _, index = command.split(' ')
+                        try:
+                            _, index = command.split(' ')
+                        except:
+                            self.PrintSmart('[-] Ingresa el Comando sin espacios extras')
+                            if self.MODE == 'grafico':
+                                return
+                            continue
                         index = int(index)
                         try:
                             # self.PrintSmart('[+] Client removed ' + str(self.Clients[index].get_extra_info('peername')))

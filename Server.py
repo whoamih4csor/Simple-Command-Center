@@ -5,7 +5,7 @@ import time
 
 
 def error(message):
-    print('Falta el modo de ejecucion terminal o graphic')
+    print('Falta el modo de ejecucion terminal o grafico')
     print(parser.usage)
     exit(1)
 def mi_ayuda():
