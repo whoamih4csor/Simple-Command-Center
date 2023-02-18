@@ -1,5 +1,6 @@
 # Simple Command Center
 [Version en Español](https://github.com/whoamih4csor/Simple-Command-Center/tree/spanish)
+
 A command center to remotely send commands to clients and receive multiple connections.
 
 ### Features
